@@ -1,0 +1,350 @@
+;SDUboard.LIB	v1.01	Last modified on Aug 9, 2006
+;-------------------------------------------------------------------------------------------------------------
+;LCD Hardware definitioner...
+;-------------------------------------------------------------------------------------------------------------
+#define 	LCDRS	PORTE,1			;LCD Register Select
+#define 	LCDE    PORTE,0			;LCD Enable
+#define		LData   PORTD			;LCD Databus
+#define 	TLCDRS	TRISE,1			;LCD Register Select I/O
+#define 	TLCDE	TRISE,0			;LCD Enable I/O
+#define		TLData	TRISD			;LCD Databus I/O
+
+;-------------------------------------------------------------------------------------------------------------
+;LCD Software Commandoer (Konstanter)
+;-------------------------------------------------------------------------------------------------------------
+#define 	LCDline1	0x80		;Linie 1 start adr.
+#define 	LCDLine2	0xC0		;Linie 2 start adr.
+#define 	LCDCLR		0x01		;Clear Display, cursor home
+#define 	LCDHome		0x02		;Cursor home, DDRAM uændret
+#define 	LCDInc		0x06		;Cursor increment mode
+#define 	LCDDec		0x04		;Cursor decrement mode
+#define 	LCDOn		0x0C		;Display On
+#define 	LCDOff		0x08		;Display Off
+#define 	CursOn		0x0E		;Display On and Cursor On
+#define 	CursOff		0x0C		;Display On and Cursor Off
+#define 	CursBlink	0x0F		;Display On and Cursor Blinking
+#define 	LCDLeft		0x18		;Shift Display Left
+#define 	LCDRight	0x1C		;Shift Display Right
+#define 	CursLeft	0x10		;Move Cursor Left
+#define 	CursRight	0x14		;Move Cursor Right
+#define 	LCDFunction	0x38		;Function register Initialization
+#define 	LCDCGRAM	0x40		;CGRAM starting address
+
+;-------------------------------------------------------------------------------------------------------------
+; LCD routiner...
+;-------------------------------------------------------------------------------------------------------------
+LCD_Init		;Initialisering af LCD display'et jfr. databladet	
+			;Display'et resettes og aktiveres, cursoren sættes off
+			;Danske bogstaver "æøå, ÆØÅ" programmeres ind på 6 af de 8 custom karakterer
+
+			BSF		STATUS,RP0      ;definer porte - start (bank1)
+			BCF		TLCDRS			;Sæt LCD-Register Select til output
+			MOVLW	0x4E			;ADFM=0; ADCS2=1; PCFG3=1; PCFG2=1; PCFG1=1; PCFG0=0; 
+			MOVWF	ADCON1			;Gem denne indstilling i ADCON1
+			BCF		TLCDE			;Sæt LCD-Enable til output
+			CLRF	TLData			;Sæt LCD-Databus til output
+			BCF		STATUS,RP0      ;definer porte - slut (bank0)
+			BCF		LCDE    		;sæt LCD-Enable til logisk 0
+			MOVLW	0x68			;Læg timer konstant i W-reg.  
+			CALL   	LCDdelay		;lav et delay (ca. 20 ms)
+			MOVLW	LCDFunction		;Læg opsætnings-kode i W-reg. 
+			CALL    LCD_Reg			;og send det til LCD
+			MOVLW	0x1A			;Læg timer konstant i W-reg.  
+			CALL   	LCDdelay		;lav et delay (ca. 5 ms)
+			MOVLW	LCDFunction		;Læg opsætnings-kode i W-reg. 
+			CALL    LCD_Reg			;og send det til LCD igen
+			MOVLW	LCDFunction		;Læg opsætnings-kode i W-reg. 
+			CALL    LCD_Reg			;og send det til LCD igen
+			CALL    Prog_DKchr     	;indsæt DK-bogstaver (æøå)
+			MOVLW	LCDOn			;læg kommando for "display on" & "cursor off" i W-reg.	
+			CALL    LCD_Reg			;og send det til LCD
+			MOVLW	LCDCLR			;læg kommando for "clear LCD" i W-reg
+			CALL    LCD_Reg			;og send det til LCD
+			MOVLW	LCDInc			;læg kommando for "increment mode" W-reg.
+			CALL    LCD_Reg			;og send det til LCD
+			RETURN					;og afslut...
+;-------------------------------------------------------------------------------------------------------------
+LCD_Reg		;Læg en kommando fra tabellen ovenfor i W-reg. 
+			;LCD_Reg lægger kommandoen ud på data-porten og sender den
+			;som en kommando til displayet (RS=0)		
+
+			BCF		LCDRS			;Sæt displayet til "register mode"
+			MOVWF	LData    		;og send W-reg. to displayet via "Ldata" (defieneret tidligere)
+			GOTO	LCD_Enable		;Send en enable-puls til displayet (displayet læser data-porten)
+;-------------------------------------------------------------------------------------------------------------
+LCD_Data		;Læg en ASCII-karakter i W-reg. 
+			;LCD_Data lægger ASCII-karakteren ud på data-porten og sender den
+			;som data til displayet (RS=1)
+
+			BSF		LCDRS			;Sæt displayet til "data mode"
+			MOVWF	LData    		;og send W-reg. to displayet via "Ldata" (defieneret tidligere)
+;-------------------------------------------------------------------------------------------------------------
+LCD_Enable	;Sender en 500 ns enable-puls til LCD-displayet for afslutte 		
+			;"register" eller "data" skrive-operationen. NOP instruktionen
+			;er kun nødvendig til  processorer der opererer hurtigere end 8 MHz. Til
+			;processorer hurtigere end 16 Mhz, tilføj endnu et NOP.
+			
+			BSF		LCDE    		;Sæt Enable høj
+			NOP						;Lav en lille pause
+			NOP
+			BCF		LCDE    		;Sæt Enable lav igen
+			MOVLW	0x4				;Læg timer konstant i W-reg.
+;-------------------------------------------------------------------------------------------------------------
+LCDdelay		;Lav et delay for at garanterer LCD timing (1ms)
+
+			CLRF	LCDcnt1			;nulstil første counter
+			MOVWF	LCDcnt2			;læg timer konstant i counter2
+LCDdLoop   	DECFSZ	LCDcnt1,F    	;Decrementer førstecounter
+			GOTO   	LCDdLoop   		;256 gange
+			DECFSZ	LCDcnt2,F     	;Decrementer, anden counter 
+			GOTO   	LCDdLoop   		;vfr. timer-konstanten ovenfor
+			RETURN					;og afslut...
+;-------------------------------------------------------------------------------------------------------------
+LCDascii		;Læg en ASCII-værdi i W-reg. og send den til LCD. Denne routine tjekker for danske bogstaver.
+			;LCDascii sender data til LCD og laver en puls på enable benet. Dette gøres ved brug af routinen
+			;LCD_Data, som tidligere beskrevet.
+
+			MOVWF	LCDchr			;Gem ASCII midlertidigt
+			CALL   	DKtjek			;undersøg om det er et DK-tegn
+			GOTO	LCD_Data		;udskriv tegnet v.h.a. routinen LCD_Data
+DKtjek		MOVLW	'Æ'				;sammenlign tegnet med "Æ"
+			SUBWF	LCDchr,w		;v.h.a. subtraktion
+			BTFSC	STATUS,Z		;Var tegnet et "Æ"?
+			RETLW	D'0'			;hvis ja, så returner med tegn 0
+			MOVLW	'æ'				;sammenlign tegnet med "æ"
+			SUBWF	LCDchr,w		;v.h.a. subtraktion
+			BTFSC	STATUS,Z		;Var tegnet et "æ"?
+			RETLW	D'1'			;hvis ja, så returner med tegn 1
+			MOVLW	'Ø'				;sammenlign tegnet med "Ø"
+			SUBWF	LCDchr,w		;v.h.a. subtraktion
+			BTFSC	STATUS,Z		;Var tegnet et "Ø"?
+			RETLW	D'2'			;hvis ja, så returner med tegn 2
+			MOVLW	'ø'				;sammenlign tegnet med "ø"
+			SUBWF	LCDchr,w		;v.h.a. subtraktion
+			BTFSC	STATUS,Z		;Var tegnet et "ø"?
+			RETLW	D'3'			;hvis ja, så returner med tegn 3
+			MOVLW	'Å'				;sammenlign tegnet med "Å"
+			SUBWF	LCDchr,w		;v.h.a. subtraktion
+			BTFSC	STATUS,Z		;Var tegnet et "Å"?
+			RETLW	D'4'			;hvis ja, så returner med tegn 4
+			MOVLW	'å'				;sammenlign tegnet med "å"
+			SUBWF	LCDchr,w		;v.h.a. subtraktion
+			BTFSC	STATUS,Z		;Var tegnet et "å"?
+			RETLW	D'5'			;hvis ja, så returner med tegn 5
+			MOVF	LCDchr,W		;hvis det ikke var et DK-tegn, så læg det tilbage i W-reg.
+			RETURN					;og returner
+;-------------------------------------------------------------------------------------------------------------
+Prog_DKchr   	;Loads the custom character data into the LCD Character
+			;Generator RAM. CGRAM is ASCII characters 0-7. Each character
+			;is loaded as a bit-map, one line at a time. The cursor
+			;auto-increments to the next CGRAM location after each
+			;write.
+
+			MOVLW	LCDCGRAM		;Send LCD CGRAM address (40h) to 
+			CALL   	LCD_Reg			;LCD as a command
+			CLRF	LCDchr			;Reset character counter
+Get_Char	MOVF	LCDchr,W		;Get character offset into W
+			CALL    Characters  	;use it to get character data
+			CALL   	LCD_Data		;If not done, send character to LCD
+			INCF	LCDchr,F		;Add 1 to Counter
+			MOVLW	D'64'			;Load W with number of char. bytes
+			SUBWF	LCDchr,W		;and compare with Counter
+			BTFSS	STATUS,Z		;by checking Z flag
+			GOTO	Get_Char		;Do it again for the next character
+			MOVLW	LCDline1		;\ gå til linie 1 pos 1
+			call	LCD_Reg			;/ send kommando til LCD
+			RETURN					;If Counter=64, we're done
+		
+Characters     	ADDWF	PCL,F			;Offset PC with Counter in W
+
+Chr0		RETLW	B'00000111'     	;Row 1, ASCII character 00		Chr0 = Æ
+			RETLW	B'00001100'     	;Row 2, ASCII character 00
+			RETLW	B'00010100'     	;Row 3, ASCII character 00
+			RETLW	B'00010111'     	;etc.
+			RETLW	B'00011100'
+			RETLW	B'00010100'
+			RETLW	B'00010111'
+			RETLW	B'00000000'
+
+Chr1		RETLW	B'00000000'     	;Row 1, ASCII character 01		Chr1 = æ
+			RETLW	B'00011010'     	;Row 2, ASCII character 01
+			RETLW	B'00000101'     	;etc.
+			RETLW	B'00001111'
+			RETLW	B'00010100'
+			RETLW	B'00010101'
+			RETLW	B'00001010'
+			RETLW	B'00000000'
+
+Chr2		RETLW	B'00001110'			;Chr2 = Ø
+			RETLW	B'00010001'
+			RETLW	B'00010011'
+			RETLW	B'00010101'
+			RETLW	B'00011001'
+			RETLW	B'00010001'
+			RETLW	B'00001110'
+			RETLW	B'00000000'
+
+Chr3		RETLW	B'00000000'			;Chr3 = ø
+			RETLW	B'00000000'
+			RETLW	B'00001101'
+			RETLW	B'00010010'
+			RETLW	B'00010101'
+			RETLW	B'00001001'
+			RETLW	B'00010110'
+			RETLW	B'00000000'
+
+Chr4		RETLW	B'00000100'			;Chr4 = Å
+			RETLW	B'00000000'
+			RETLW	B'00001110'
+			RETLW	B'00010001'
+			RETLW	B'00010001'
+			RETLW	B'00011111'
+			RETLW	B'00010001'
+			RETLW	B'00000000'
+
+Chr5		RETLW	B'00000100'			;Chr5 = å
+			RETLW	B'00000000'
+			RETLW	B'00001110'
+			RETLW	B'00000001'
+			RETLW	B'00001111'
+			RETLW	B'00010001'
+			RETLW	B'00001111'
+			RETLW	B'00000000'
+
+Chr6		RETLW	B'00000000'			;Chr6 = Blank
+			RETLW	B'00000000'
+			RETLW	B'00000000'
+			RETLW	B'00000000'
+			RETLW	B'00000000'
+			RETLW	B'00000000'
+			RETLW	B'00000000'
+			RETLW	B'00000000'
+
+Chr7       	RETLW	B'00000000'     	;Row 1, ASCII character 07		Chr7 = Blank
+			RETLW	B'00000000'     	;Row 2, ASCII character 07
+			RETLW	B'00000000'
+			RETLW	B'00000000'
+			RETLW	B'00000000'
+			RETLW	B'00000000'
+			RETLW	B'00000000'
+			RETLW	B'00000000'       	;Row 8, ASCII character 07	
+
+;-------------------------------------------------------------------------------------------------------------
+; LCD  Macro'er...
+;-------------------------------------------------------------------------------------------------------------
+			; Syntax
+			; [LABEL]	string  "sætning"
+
+			;Denne Macro omdanner en sætning til en tabel
+			;af typen: RETLW [bogstav]
+
+string   	macro	besked
+			ADDWF	PCL,F
+			dt		besked,0
+			endm
+;-------------------------------------------------------------------------------------------------------------
+			;Denne Macro sender en null-termineret sætning
+			;til LCD displayet, der taget højde for DK-bogstaver
+
+LCDstr		macro	string1
+			clrf	LCDp
+			MOVLW	HIGH string1
+			MOVWF	PCLATH
+			MOVF	LCDp,W				;Get character offset into W
+			CALL    string1	     		;use it to get character data
+			ADDLW	0
+			BTFSC	STATUS,Z
+			goto	$ + 4
+			CALL    LCDascii			;If not done, send character to LCD
+			incf	LCDp,F   			;Add 1 to Counter
+			GOTO	$ - 7				;Do it again for the next character  
+			endm
+
+;-------------------------------------------------------------------------------------------------------------
+; konverteringsroutiner...
+;-------------------------------------------------------------------------------------------------------------
+CONV2ASCII	;Denne routine oversætter et tal til den tilsvarende
+			;ASCII-værdi. Der tages også højde for tal der er 
+			;større end 9... mulige ACSII-værdier 0 - 9, A - F
+
+			;Anvendelse
+			;1. flyt tallet til W-reg.
+			;2. CALL CONV2ASCII
+			;3. resultatet ligger i W-reg.
+
+			ANDLW	B'00001111'   		;mask mindste nibble
+			ADDLW	D'48'				;læg et ASCII-0 til værdien
+			MOVWF	LCDchr				;gem værdien midlertidigt
+			MOVLW	D'58'				;\  undersøg om tallet er
+			SUBWF	LCDchr,W			;/   større end ASCII-9
+			BTFSS	STATUS,C
+			GOTO	C2A_END				;hvis nej: så afslut...
+			MOVLW	D'7'				;\ hvis ja: så juster ASCII
+			ADDWF	LCDchr,F			;/
+C2A_END		MOVF	LCDchr,W			;læg resultat i W
+			RETURN
+;-------------------------------------------------------------------------------------------------------------
+BIN2DEC		;This conversion program attempts to subtract 100 from 
+			;the binary number until the result is negative. Each
+			;subtraction increments the CIF100 digit. When it can't
+			;subtrace 100, the program subtracts 10 from the remainder 
+			;until the result once again is negative, incrementing the 
+			;CIF10 digit for each subtraction. The remainder of the 
+			;subtraction becomes the CIF1 digit.
+
+			;Use
+			;1. Move the binary number into W
+			;2. Call BIN2DEC
+
+			CLRF	CIF100				;Reset the CIF100 counter
+			CLRF	CIF10   			;and the CIF10 counter
+			MOVWF	CIF1				;CIF1 digit holds results
+
+Hundred		MOVLW	D'100'   			;Load W with 100 and
+			SUBWF	CIF1,W				;subtract it from the number
+			BTFSS	STATUS,C			;If result is negative
+			GOTO	Ten					;check for any CIF10
+			INCF		CIF100,F		;otherwise count 1 hundred
+			MOVWF	CIF1				;Remainder becomes result
+			GOTO	Hundred				;Check for another hundred
+
+Ten			MOVLW	D'10'				;Load W with 10 and
+			SUBWF	CIF1,W				;subtract it from the number
+			BTFSS	STATUS,C			;If result is negative
+			RETLW	D'0'   				;we're done, CIF1 holds remainder
+			INCF	CIF10,F   			;otherwise count 1 ten
+			MOVWF	CIF1				;Remainder becomes result
+			GOTO	Ten					;Check for another ten
+
+;-------------------------------------------------------------------------------------------------------------
+; A/D-konverter routiner...
+;-------------------------------------------------------------------------------------------------------------
+AD_init		;denne routine aktiverer A/D-converteren
+			;AN0 vælges som analog input (resten er sat til digital) 
+			;kanal 0 vælges og A/D aktiveres, clocken sættes til 16 Tosc
+			;resultatet vælges som venstre-justeret (ADFM=0) 
+
+			BSF		STATUS,RP0    	    ;definer porte - start (bank1)
+			MOVLW	B'11001110'				;ADFM=1; ADCS2=1; PCFG3=1; PCFG2=1; PCFG1=1; PCFG0=0; 
+			MOVWF	ADCON1				;Gem denne indstilling i ADCON1
+			BCF		STATUS,RP0    	    ;definer porte - slut (bank0)
+			MOVLW	0x41				;ADCS1=0; ADCS0=1; CH2=0; CH1=0; CH0=0; GO=0; ADON=1
+			MOVWF	ADCON0				;Gem denne indstilling i ADCON0
+			RETURN
+;-------------------------------------------------------------------------------------------------------------
+AD_Read		;denne routine starter en A/D-convertering
+			;Resultatet lægges i ADRESH (8 MSB) og ADRESL (2 LSB)
+
+			BSF		ADCON0,GO		 	;Start en konvertering
+AD_Wait		BTFSC	ADCON0,GO			;\ vent her til converteringen
+			GOTO	AD_Wait				;/ er færdig og resultatet kan læses
+			RETURN
+
+;-------------------------------------------------------------------------------------------------------------
+; Opæstning af lysdioder på SDU PICboard
+;-------------------------------------------------------------------------------------------------------------
+LED_init	bsf		STATUS,RP0			;definer porte - start (bank1)
+			CLRF	TRISC				;lav port C til udgange
+			bcf		STATUS,RP0			;definer porte - slut (bank0)
+			clrf	PORTC				;sluk alle lysdioder
+			RETURN

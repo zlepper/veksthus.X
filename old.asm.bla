@@ -1,0 +1,186 @@
+;    MOVFW	SWITCH
+;    MOVWF	LED
+;    MOVF	Tvalue,W
+;    MOVWF	LED
+;    BTFSC	SWITCH,1
+;    BSF		FLAG,1
+;    BTFSC	SWITCH,2
+;    BSF		FLAG,2
+;    BTFSC	SWITCH,3
+;    BSF		FLAG,3
+;    BTFSC	SWITCH,4
+;    BSF		FLAG,4
+;    BTFSC	SWITCH,5
+;    BSF		FLAG,5
+;    BTFSC	SWITCH,6
+;    BSF		FLAG,6
+;    BTFSC	SWITCH,7
+;    BSF		FLAG,7
+;    MOVLW	B'11111111'
+;    ANDWF	FLAG,F
+;; ******* KØRSEL AF STAGES --- ELLER VISNING AF UR --- NÅR INGEN STAGES KØRE *********
+;    BTFSS	FLAG,0
+;    GOTO 	MAIN
+;    BTFSC	FLAG,1
+;    CALL 	TEMP
+;    BTFSC	FLAG,2
+;    CALL 	VIND
+;    BTFSC	FLAG,3
+;    CALL 	REGN
+;    BTFSC	FLAG,4
+;    CALL 	ATEMP
+;    BTFSC	FLAG,5
+;    CALL 	AVIND
+;    BTFSC	FLAG,6
+;    CALL 	AREGN
+;    BTFSC	FLAG,7
+;    CALL	UTID
+;    BCF		FLAG,0
+;    MOVLW	d'0'
+;    SUBWF	FLAG,W
+;    BTFSC	STATUS,Z
+;    CALL	UR
+;    CLRF	FLAG	
+;    GOTO	MAIN	
+;; ******* UDSKRIFT AF TEMPERATUR *****************************************************
+;TEMP		MOVLW	LCDCLR
+;    CALL	LCD_Reg
+;			LCDstr	msg
+;
+;	;****** Udskriv den mindste målte temperatur
+;    MOVLW	LCDLine2
+;    CALL 	LCD_Reg
+;    MOVF	Tmin,W
+;    CALL 	UDSKRIV
+; 	;****** Udskriv den nuværende temperatur
+;    MOVLW	LCDLine2+4
+;    CALL	LCD_Reg
+;    MOVF	Tvalue,W
+;    CALL	UDSKRIV
+;	;****** Udskriv den højest målte temperatur
+;    MOVLW	LCDLine2+8
+;    CALL 	LCD_Reg
+;    MOVF	Tmax,W
+;    CALL 	UDSKRIV			
+;
+;    RETURN
+;; ******* UDSKRIFT AF VINDHASTIGHED *****************************************************
+;VIND		MOVLW	LCDCLR
+;    CALL	LCD_Reg
+;			LCDstr	msg1
+;    MOVLW	LCDLine2+7
+;    CALL	LCD_Reg
+;    MOVF	Vvalue,W
+;    CALL	UDSKRIV
+;    RETURN
+;; ******* UDSKRIFT AF NEDBØRSMÆNGDE *****************************************************
+;REGN		MOVLW	LCDCLR
+;    CALL	LCD_Reg
+;			LCDstr	msg2
+;    MOVLW	LCDLine2+7
+;    CALL	LCD_Reg
+;    MOVF	Rvalue,W
+;    CALL	UDSKRIV
+;    RETURN
+;; ******* INDLÆSNING AF ANALOG TEMPERATUR ********************************************
+;ATEMP		MOVLW	LCDCLR
+;    CALL	LCD_Reg
+;    CALL	AD_Read
+;    BSF		STATUS,RP0
+;    MOVF	ADRESL,W
+;    BCF		STATUS,RP0
+;    MOVWF	Tvalue	
+;
+;	;****** Sæt min og Max værdi
+;    SUBWF	Tmin,W
+;    BTFSC	STATUS,C
+;    CALL 	SETTMIN
+;			
+;    BCF		STATUS,C
+;    MOVFW	Tmax
+;    SUBWF	Tvalue,W
+;    BTFSC	STATUS,C
+;    CALL 	SETTMAX
+;			
+;	;****** Udskriv noget andet
+;    MOVLW	"_"
+;    CALL    LCD_Data
+;    MOVLW	LCDLine2+7
+;    CALL	LCD_Reg
+;    MOVF	Tvalue,W
+;    CALL	UDSKRIV
+;    RETURN
+;
+;SETTMIN
+;    MOVFW	Tvalue
+;    MOVWF	Tmin
+;    RETURN
+;
+;SETTMAX
+;    MOVFW	Tvalue
+;    MOVWF	Tmax
+;    RETURN
+;; ******* Udskriv resterende tid indtil tic ******************************************
+;UTID		
+;    MOVLW	LCDCLR
+;    CALL	LCD_Reg
+;    MOVLW	LCDLine2
+;    CALL	LCD_Reg
+;    ; Uskriv timer
+;    MOVLW	d'24'
+;    SUBWF	hour,W
+;    CALL	UDSKRIV
+;    
+;    MOVLW	':'	    ;\ Udskriv kolon
+;    CALL   	LCD_Data    ;/
+;    
+;    MOVLW	d'60'
+;    SUBWF	min,W
+;    CALL	UDSKRIV
+;    
+;    MOVLW	':'	    ;\ Udskriv kolon
+;    CALL   	LCD_Data    ;/
+;    
+;    MOVLW	d'60'
+;    SUBWF	sec,W
+;    CALL	UDSKRIV
+;    BCF		FLAG,7
+;    RETURN
+;; ******* INDLÆSNING AF ANALOG VINDHASTIGHED *****************************************
+;AVIND		MOVLW	LCDCLR
+;    CALL	LCD_Reg
+;    CALL	AD_Read
+;    BSF		STATUS,RP0
+;    MOVF	ADRESL,W
+;    BCF		STATUS,RP0
+;    MOVWF	Vvalue	
+;    MOVLW	"_"
+;    CALL    LCD_Data
+;    MOVLW	LCDLine2+7
+;    CALL	LCD_Reg
+;    MOVF	Vvalue,W
+;    CALL	UDSKRIV
+;    RETURN
+;; ******* INDLÆSNING AF ANALOG NEDBØRSMÆNGDE *****************************************
+;AREGN		MOVLW	LCDCLR
+;    CALL	LCD_Reg
+;    CALL	AD_Read
+;    BSF		STATUS,RP0
+;    MOVF	ADRESL,W
+;    BCF		STATUS,RP0
+;    MOVWF	Rvalue	
+;    MOVLW	"_"
+;    CALL    LCD_Data
+;    MOVLW	LCDLine2+7
+;    CALL	LCD_Reg
+;    MOVF	Rvalue,W
+;    CALL	UDSKRIV
+;    RETURN
+;; ******* UDSKRIFT AF TEMPERATUR *****************************************************
+;UR			MOVLW	LCDCLR
+;    CALL	LCD_Reg
+;    CALL	display	
+;    RETURN
+
+
+

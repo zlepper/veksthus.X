@@ -1,0 +1,7 @@
+CIF100		equ		0x79				;BIN2DEC variable, The BCD number is stored CIF100:CIF10:CIF1
+CIF10		equ		0x7A				;BIN2DEC variable, The BCD number is stored CIF100:CIF10:CIF1
+CIF1		equ		0x7B				;BIN2DEC variable, The BCD number is stored CIF100:CIF10:CIF1
+LCDcnt1		equ		0x7C				;LCD delay counter used in LCDdelay
+LCDcnt2		equ		0x7D				;LCD delay counter used in LCDdelay
+LCDchr		equ		0x7E				;...used in LCDstr, LCDascii, prog_DKchr & CONV2ASCII
+LCDp   		equ		0x7F				;LCD string pointer used in LCDstr
